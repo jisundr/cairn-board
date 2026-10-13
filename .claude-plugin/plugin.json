@@ -1,0 +1,19 @@
+{
+  "name": "cairn-board",
+  "displayName": "Cairn Board",
+  "version": "0.1.0",
+  "description": "A read-only kanban for a project's cairn tasks, with cost per task when cairn-meter's usage export exists.",
+  "author": {
+    "name": "Jayson De los Reyes",
+    "email": "jisun.delosreyes@gmail.com"
+  },
+  "repository": "https://github.com/jisundr/cairn-board",
+  "homepage": "https://github.com/jisundr/cairn-board#readme",
+  "license": "MIT",
+  "keywords": [
+    "kanban",
+    "tasks",
+    "dashboard",
+    "cairn"
+  ]
+}
