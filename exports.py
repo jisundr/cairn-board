@@ -19,6 +19,7 @@ absent figure for a sole session makes the task's cost `unknown`; the board
 never shows a partial sum as if it were whole.
 """
 import json
+import math
 import re
 import time
 from pathlib import Path
@@ -110,9 +111,17 @@ def live_markers(active_dir: Path, project_root: Path, now: float | None = None)
 
 
 def _usable_cost(value) -> float | None:
+    """A finite, non-negative number, else None (unknown). NaN, Infinity and
+    negative figures never reach the API JSON."""
     if isinstance(value, bool) or not isinstance(value, (int, float)):
         return None
-    return float(value)
+    try:
+        number = float(value)
+    except OverflowError:
+        return None
+    if not math.isfinite(number) or number < 0:
+        return None
+    return number
 
 
 def session_costs(usage: dict | None) -> dict[str, float | None]:
@@ -152,7 +161,10 @@ def cost_for(session_ids: list[str], owners: dict[str, int], costs: dict[str, fl
         figures = [costs.get(s) for s in sole]
         if any(f is None for f in figures):
             return {"state": "unknown", **base}
-        return {"state": "known", **base, "usd": round(sum(figures), 6)}
+        total = sum(figures)
+        if not math.isfinite(total):
+            return {"state": "unknown", **base}
+        return {"state": "known", **base, "usd": round(total, 6)}
     if shared:
         return {"state": "shared", **base}
     return {"state": "none", **base}

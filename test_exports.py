@@ -139,3 +139,26 @@ def test_active_markers(project, tmp_path):
     (d / "sess.json").write_text(json.dumps({"project": str(project), "task": "b"}))
     out = exports.build_board(project, d)
     assert [c["folder"] for c in out["cards"] if c["active"]] == ["a"]
+
+
+@pytest.mark.parametrize("bad", ["NaN", "Infinity", "-Infinity", "-1.5", '"3"', "true", "1e999"])
+def test_non_finite_negative_or_non_numeric_cost_is_unknown(project, tmp_path, bad):
+    tasks_json(project, [task("a", sessions=["s1"])])
+    write(project / ".cairn/export/usage.json",
+          '{"schema": 1, "sessions": [{"session_id": "s1", "cost_usd": %s}]}' % bad)
+    out = exports.build_board(project, tmp_path)
+    assert card(out, "a")["cost"]["state"] == "unknown" and card(out, "a")["cost"]["usd"] is None
+    json.dumps(out, allow_nan=False)  # never NaN/Infinity in API JSON
+
+
+def test_overflowing_cost_sum_is_unknown(project, tmp_path):
+    tasks_json(project, [task("a", sessions=["s1", "s2"])])
+    usage_json(project, [("s1", 1.7e308), ("s2", 1.7e308)])
+    cost = card(exports.build_board(project, tmp_path), "a")["cost"]
+    assert cost["state"] == "unknown" and cost["usd"] is None
+
+
+def test_zero_cost_is_known(project, tmp_path):
+    tasks_json(project, [task("a", sessions=["s1"])])
+    usage_json(project, [("s1", 0)])
+    assert card(exports.build_board(project, tmp_path), "a")["cost"]["state"] == "known"
