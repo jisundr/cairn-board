@@ -1,0 +1,22 @@
+# macOS
+.DS_Store
+
+# secrets
+.env
+.env.*
+
+# editors
+.vscode/
+.idea/
+
+# python
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# frontend
+node_modules/
+*.tsbuildinfo
+/frontend/test-results/
+/frontend/playwright-report/
+/frontend/.e2e-scratch/
