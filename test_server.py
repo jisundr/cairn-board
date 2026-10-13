@@ -143,3 +143,18 @@ def test_host_check_covers_asset_and_write_routes(live):
     port = base.rsplit(":", 1)[1]
     assert raw_get(base, f"/api/tasks/asset?project=proj&folder={rel}&path=pic.png", "evil.example") == 403
     assert raw_get(base, f"/api/tasks/asset?project=proj&folder={rel}&path=pic.png", f"localhost:{port}") == 200
+
+
+def test_task_docs_are_read_as_utf8(live):
+    base, rel, proj = live
+    (proj / rel / "NOTES.md").write_text("caf\u00e9 \u2014 \u65e5\u672c\n", encoding="utf-8")
+    q = f"project=proj&folder={rel}"
+    status, body, _ = get(f"{base}/api/tasks/doc?{q}&file=NOTES.md")
+    assert status == 200 and json.loads(body)["data"]["content"] == "caf\u00e9 \u2014 \u65e5\u672c\n"
+
+
+def test_undecodable_doc_is_a_404_not_a_crash(live):
+    base, rel, proj = live
+    (proj / rel / "BAD.md").write_bytes(b"\xff\xfe not utf-8 \x80")
+    q = f"project=proj&folder={rel}"
+    assert get(f"{base}/api/tasks/doc?{q}&file=BAD.md")[0] == 404

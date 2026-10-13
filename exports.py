@@ -57,7 +57,7 @@ def read_export(path: Path) -> dict:
     if not path.is_file():
         return {"status": "missing", "data": None, "detail": ""}
     try:
-        data = json.loads(path.read_text())
+        data = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, ValueError) as exc:
         return {"status": "invalid", "data": None, "detail": f"cannot read {path.name}: {exc}"}
     if not isinstance(data, dict):
@@ -90,7 +90,7 @@ def live_markers(active_dir: Path, project_root: Path, now: float | None = None)
         try:
             if now - path.stat().st_mtime > MARKER_MAX_AGE_SECONDS:
                 continue
-            payload = json.loads(path.read_text())
+            payload = json.loads(path.read_text(encoding="utf-8"))
         except (OSError, ValueError):
             continue
         if not isinstance(payload, dict):

@@ -71,8 +71,8 @@ class BoardApp:
         if source is None:
             return None
         try:
-            text = source.read_text()
-        except OSError:
+            text = source.read_text(encoding="utf-8")
+        except (OSError, ValueError):
             return None
         if source.name == "DRAFT.md":
             goal, key_info = taskfiles.draft_summary(text)
@@ -115,8 +115,8 @@ class BoardApp:
         if path is None or not path.is_file():
             return None
         try:
-            return {"content": path.read_text()}
-        except OSError:
+            return {"content": path.read_text(encoding="utf-8")}
+        except (OSError, ValueError):
             return None
 
     def asset(self, project: str | None, folder: str | None, rel: str | None):

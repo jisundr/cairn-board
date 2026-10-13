@@ -175,3 +175,11 @@ def test_duplicate_folder_entries_first_wins_and_do_not_share_sessions(project, 
     assert [c["folder"] for c in out["cards"]].count("a") == 1
     assert card(out, "a")["goal"] == "first"
     assert card(out, "a")["cost"] == {"state": "known", "usd": 1.0, "sessions": 1, "shared_sessions": 0}
+
+
+def test_exports_are_read_as_utf8(project, tmp_path):
+    p = project / ".cairn/export/tasks.json"
+    p.parent.mkdir(parents=True)
+    body = json.dumps({"schema": 1, "tasks": [task("a", goal="caf\u00e9 \u65e5\u672c")]}, ensure_ascii=False)
+    p.write_bytes(body.encode("utf-8"))
+    assert card(exports.build_board(project, tmp_path), "a")["goal"] == "caf\u00e9 \u65e5\u672c"
