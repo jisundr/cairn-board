@@ -204,8 +204,12 @@ def build_board(project_root: Path, active_dir: Path | None = None, now: float |
     payload["generated"] = data.get("generated") if isinstance(data.get("generated"), str) else None
 
     tasks: list[dict] = []
+    seen_folders: set[str] = set()
     for t in raw_tasks:
         if isinstance(t, dict) and isinstance(t.get("folder"), str) and t.get("phase") in PHASES:
+            if t["folder"] in seen_folders:
+                continue  # a repeated folder: the first entry wins
+            seen_folders.add(t["folder"])
             tasks.append(t)
         else:
             payload["skipped"] += 1

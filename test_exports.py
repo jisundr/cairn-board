@@ -162,3 +162,16 @@ def test_zero_cost_is_known(project, tmp_path):
     tasks_json(project, [task("a", sessions=["s1"])])
     usage_json(project, [("s1", 0)])
     assert card(exports.build_board(project, tmp_path), "a")["cost"]["state"] == "known"
+
+
+def test_duplicate_folder_entries_first_wins_and_do_not_share_sessions(project, tmp_path):
+    tasks_json(project, [
+        task("a", sessions=["s1"], goal="first"),
+        task("a", sessions=["s1"], goal="second"),
+        task("b"),
+    ])
+    usage_json(project, [("s1", 1.0)])
+    out = exports.build_board(project, tmp_path)
+    assert [c["folder"] for c in out["cards"]].count("a") == 1
+    assert card(out, "a")["goal"] == "first"
+    assert card(out, "a")["cost"] == {"state": "known", "usd": 1.0, "sessions": 1, "shared_sessions": 0}
