@@ -162,8 +162,20 @@ def _safe_static_path(static_dir: Path, request_path: str) -> Path | None:
 
 class Handler(http.server.BaseHTTPRequestHandler):
     app: "BoardApp" = None
+    # Host header values this server answers to (set by make_server once the
+    # port is known). Anything else is a DNS-rebinding attempt.
+    allowed_hosts: frozenset = frozenset()
+
+    def _host_ok(self) -> bool:
+        host = (self.headers.get("Host") or "").strip().lower()
+        if host in self.allowed_hosts:
+            return True
+        self._write(403, "application/json", b'{"error": "forbidden host"}')
+        return False
 
     def do_GET(self):
+        if not self._host_ok():
+            return
         parsed = urlparse(self.path)
         params = parse_qs(parsed.query)
         if parsed.path == "/api/tasks/asset":
@@ -175,6 +187,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self._serve_static(parsed.path)
 
     def _refuse(self):
+        if not self._host_ok():
+            return
         self._write(405, "application/json", b'{"error": "read-only: this board has no write routes"}', allow="GET")
 
     do_POST = do_PUT = do_PATCH = do_DELETE = _refuse
@@ -233,7 +247,19 @@ class Handler(http.server.BaseHTTPRequestHandler):
 def make_server(project_root: Path, host: str = DEFAULT_HOST, port: int = DEFAULT_PORT, **kwargs):
     app = BoardApp(project_root, **kwargs)
     handler = type("BoundHandler", (Handler,), {"app": app})
-    return http.server.ThreadingHTTPServer((host, port), handler)
+    httpd = http.server.ThreadingHTTPServer((host, port), handler)
+    handler.allowed_hosts = allowed_hosts(httpd)
+    return httpd
+
+
+def allowed_hosts(httpd) -> frozenset:
+    """`127.0.0.1:<port>` and `localhost:<port>`, plus `[::1]:<port>` only
+    when the socket really is IPv6."""
+    bound = httpd.server_address[1]
+    names = ["127.0.0.1", "localhost"]
+    if httpd.address_family == socket.AF_INET6:
+        names.append("[::1]")
+    return frozenset(f"{n}:{bound}" for n in names)
 
 
 def main(argv: list[str] | None = None):

@@ -108,3 +108,38 @@ def test_empty_state_payload(tmp_path):
         httpd.server_close()
     assert data["status"] == "missing" and data["usage"] == "missing" and data["cards"] == []
     assert not (proj / ".cairn").exists()
+
+
+def raw_get(base, path, host):
+    """GET with an explicit Host header (or none when `host` is None)."""
+    import http.client
+    conn = http.client.HTTPConnection(base.removeprefix("http://"))
+    conn.putrequest("GET", path, skip_host=True, skip_accept_encoding=True)
+    if host is not None:
+        conn.putheader("Host", host)
+    conn.endheaders()
+    resp = conn.getresponse()
+    status = resp.status
+    resp.read()
+    conn.close()
+    return status
+
+
+@pytest.mark.parametrize("path", ["/api/tasks", "/api/projects", "/", "/index.html"])
+def test_host_header_allowlist(live, path):
+    base, _, _ = live
+    port = base.rsplit(":", 1)[1]
+    assert raw_get(base, path, f"127.0.0.1:{port}") == 200
+    assert raw_get(base, path, f"localhost:{port}") == 200
+    assert raw_get(base, path, f"evil.example:{port}") == 403
+    assert raw_get(base, path, "evil.example") == 403
+    assert raw_get(base, path, f"127.0.0.1:{int(port) + 1}") == 403
+    assert raw_get(base, path, f"[::1]:{port}") == 403  # server binds IPv4 only
+    assert raw_get(base, path, None) == 403
+
+
+def test_host_check_covers_asset_and_write_routes(live):
+    base, rel, _ = live
+    port = base.rsplit(":", 1)[1]
+    assert raw_get(base, f"/api/tasks/asset?project=proj&folder={rel}&path=pic.png", "evil.example") == 403
+    assert raw_get(base, f"/api/tasks/asset?project=proj&folder={rel}&path=pic.png", f"localhost:{port}") == 200
