@@ -324,13 +324,19 @@ function formatDocSize(bytes: number): string {
   return bytes >= 1024 ? `${(bytes / 1024).toFixed(1)} KB` : `${bytes} B`;
 }
 
-// A doc image's `src` as the browser should fetch it: a scheme URL
-// (`https:`, `data:`, ...) or a protocol-relative `//host` one is left as-is;
-// anything else - `./x.png`, `mockups/y.webp`, and also `/abs.png` or
-// `../x.png` - goes through `/api/tasks/asset`, so the server's containment
-// guard stays the single place that decides what a task folder may serve.
-export function taskAssetUrl(project: string, folder: string, src: string): string {
-  if (/^[a-z][a-z0-9+.-]*:/i.test(src) || src.startsWith("//")) return src;
+// True for a doc image `src` that points inside the task folder: not a
+// scheme URL (`https:`, `data:`, ...) and not protocol-relative (`//host`).
+// Only these are rendered; the board makes no third-party requests.
+export function isRelativeImageSrc(src: string): boolean {
+  return !(/^[a-z][a-z0-9+.-]*:/i.test(src) || src.startsWith("//"));
+}
+
+// A relative doc image's `src` as the browser should fetch it: everything
+// goes through `/api/tasks/asset` (so `/abs.png` and `../x.png` too), so the
+// server's containment guard stays the single place that decides what a task
+// folder may serve. Returns null for a non-relative src.
+export function taskAssetUrl(project: string, folder: string, src: string): string | null {
+  if (!isRelativeImageSrc(src)) return null;
   let path = src;
   try {
     path = decodeURIComponent(src);
@@ -341,9 +347,10 @@ export function taskAssetUrl(project: string, folder: string, src: string): stri
 }
 
 // markdown-to-jsx's `img` override for the Docs tab: routes relative srcs
-// through `taskAssetUrl` and falls back to the alt text when the image is
-// refused, missing, or has no usable src (the default sanitizer drops a
-// `javascript:` one).
+// through `taskAssetUrl` and falls back to the alt text when the src is not
+// relative (http(s):, data:, protocol-relative), or the image is refused,
+// missing, or has no usable src (the default sanitizer drops a `javascript:`
+// one).
 function TaskDocImage({
   project,
   folder,
@@ -360,7 +367,8 @@ function TaskDocImage({
   // Keyed on the src that failed, so a new src gets a fresh attempt.
   const [failedSrc, setFailedSrc] = useState<string | null>(null);
 
-  if (!src || failedSrc === src) {
+  const url = src ? taskAssetUrl(project, folder, src) : null;
+  if (!src || url === null || failedSrc === src) {
     return (
       <span className="doc-img-missing" data-testid="doc-img-missing">
         {alt || src || "image"}
@@ -369,7 +377,7 @@ function TaskDocImage({
   }
   return (
     <img
-      src={taskAssetUrl(project, folder, src)}
+      src={url}
       alt={alt}
       title={title}
       loading="lazy"

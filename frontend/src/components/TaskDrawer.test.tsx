@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { ActivityEntry, TaskDetail, TaskDoc } from "../api/types";
 import { envelope, installFetchMock } from "../test/mockApi";
 import { renderWithClient } from "../test/renderWithClient";
-import { TaskDrawer } from "./TaskDrawer";
+import { TaskDrawer, isRelativeImageSrc, taskAssetUrl } from "./TaskDrawer";
 
 const noop = () => {};
 
@@ -177,7 +177,7 @@ describe("TaskDrawer", () => {
     expect(screen.getByTestId("docs-mobile-dropdown")).toBeInTheDocument();
   });
 
-  it("Docs tab routes relative images through the asset route and leaves scheme/protocol-relative ones alone", async () => {
+  it("Docs tab routes relative images through the asset route and renders alt text for scheme/protocol-relative ones", async () => {
     const project = "cairn-2.0";
     const folder = "docs/tasks/2026-09-28-1345-build-kanban-board";
     const content = [
@@ -208,9 +208,10 @@ describe("TaskDrawer", () => {
     };
     expect(assetParams("a")).toEqual({ project, folder, path: "./x.png" });
     expect(assetParams("b")).toEqual({ project, folder, path: "mockups/my y.webp" });
-    expect(src("c")).toBe("https://example.com/c.png");
-    expect(src("d")).toBe("data:image/png;base64,iVBORw0KGgo=");
-    expect(src("e")).toBe("//cdn.example/e.png");
+    for (const alt of ["c", "d", "e", "f"]) expect(src(alt)).toBeUndefined();
+    const missing = Array.from(document.querySelectorAll('[data-testid="doc-img-missing"]')).map((el) => el.textContent);
+    expect(missing).toEqual(["c", "d", "e", "f"]);
+    expect(document.querySelector(".doc-render")!.innerHTML).not.toMatch(/example\.com|cdn\.example|data:image/);
     expect(document.querySelector('.doc-render [src^="javascript:" i]')).toBeNull();
     expect(document.querySelector(".doc-render")!.innerHTML).not.toMatch(/javascript:/i);
   });
@@ -408,5 +409,18 @@ describe("TaskDrawer", () => {
     await waitFor(() => expect(screen.getByText("Ship the kanban board.")).toBeInTheDocument());
     expect(screen.queryByTestId("drawer-parent-link")).not.toBeInTheDocument();
     expect(screen.queryByTestId("drawer-subtask-count")).not.toBeInTheDocument();
+  });
+});
+
+describe("doc image src policy", () => {
+  it("only relative srcs are fetchable", () => {
+    expect(isRelativeImageSrc("./a.png")).toBe(true);
+    expect(isRelativeImageSrc("mockups/b.png")).toBe(true);
+    expect(isRelativeImageSrc("/abs.png")).toBe(true);
+    for (const s of ["https://x/y.png", "HTTP://x/y.png", "data:image/png;base64,AA", "//cdn/x.png", "javascript:alert(1)"]) {
+      expect(isRelativeImageSrc(s)).toBe(false);
+      expect(taskAssetUrl("p", "f", s)).toBeNull();
+    }
+    expect(taskAssetUrl("p", "f", "a%20b.png")).toBe("/api/tasks/asset?project=p&folder=f&path=a+b.png");
   });
 });
